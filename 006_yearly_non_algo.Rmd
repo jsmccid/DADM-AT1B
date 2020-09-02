@@ -1,0 +1,1359 @@
+# Yearly complex
+
+* Net present value / time value of money not included as the return rate investing gold is higher than the discount rate
+
+## Variables
+
+```{r}
+
+set.seed(98)
+
+starting_capital <- 2e6
+num_sim <- 1e5
+
+cost_of_freelance <- 4e5
+prob_of_finding_claim <- 0.15
+
+lambda = 4
+
+fixcost_min <- 5e5
+fixcost_ml <- 8.5e5
+fixcost_max <- 1.1e6
+
+mine1output_min <- 50
+mine1output_ml <- 800
+mine1output_max <- 1500
+
+gold_start_price <- 2500
+COGS <- 0.35 # percentage
+
+prob_of_choosing_resolution <- 0.5
+prob_of_resolution_success <- 0.4
+
+legal_min <- 5e5
+legal_ml <- 7.5e5
+legal_max <- 1e6
+
+gold_change_min <- -150
+gold_change_ml <- 150
+gold_change_max <- 300
+
+mine1change_min <- -0.1
+mine1change_ml <- 0.3
+mine1change_max <- 0.7
+```
+
+# Tweak variables
+```{r}
+
+# discovery teams modifier
+disco_team_mod <- 0.95 # % of potential teams
+discoteam_last_costs <- 0.05 # minus percentage of last years costs from discovery team budget (of starting cap for first year)
+
+# legal modifier
+prob_of_choosing_resolution <- 0.05 # Probability of chosing to try and resolve
+prob_of_choosing_resolution_found_claim <- 0.05 # probability if 2nd claim is found (independent of above)
+
+```
+
+# By Year Modifiers and Triggers
+
+```{r}
+
+# stand down mines if estimated revenue is below estimated fixed costs
+#minestanddown_prob <- c(0.9,0.9,0.9,0.9,0.9)
+minestanddown_prob <- rep(0, 5)
+
+# gold hold
+# implimentation could be better, effectivley carries gold to next gold price update, sells, so that discovery teams can be calulated and rebuys all but the cost of expense multipled by the modifier
+
+#gold_hold_mod <- c(0.95, 0.95, 0.95, 0.95, 0) # percentage capital spent on buying gold
+gold_hold_mod <- rep(0, 5)
+
+# Disco team overide on/of
+#dtoswitch <- c(1,1,1,1,1)
+dtoswitch <- rep(0, 5)
+
+# Discovery team overide value, 1 = freelance team only
+discoteam_overide <- c(1,1,1,1,1)
+
+# discovery year mod y1 y2 y3 y4 y5, multiplied by disco teams modifier can't be >1
+#disco1to5 <- c(2,1,0.5,0.5,0.5)
+disco1to5 <- rep(1, 5)
+
+# resolution year mod y1 y2 y3 y4 y5
+#reso1to5 <- c(0.5,0.5,0.5,0.5,0.5)
+reso1to5 <- rep(1, 5)
+
+# Lease out freelance team if mine discovered (prob out of brief)
+
+```
+
+## Year 1
+
+```{r}
+#### START CALC
+
+#### YEAR 1
+
+# starting capital and number of simulations
+start_cap = rep(starting_capital, num_sim)
+
+## Existing claim
+
+# calc output of existing claim
+emine_output <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+# gold price
+gold_price <- gold_start_price
+
+# calc revenue from output
+emine_revenue <- emine_output * gold_price
+
+# calc gross profit, - COGS
+emine_gross <- emine_revenue * (1-COGS)
+
+## Stand down mine if gold price low
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+emine_output_estimate <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+emine_revenue_estimate <- emine_output_estimate * gold_price
+emine_gross_estimate <- emine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- emine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[1])
+
+# stood down mines
+emine_stand_down <- low_output * standdown_vote
+
+# no profit from stood down mines
+emine_gross[emine_stand_down == 1] <- 0
+
+# capital + gross profit, year 1 stage 1
+cap_y1_s1 <- start_cap + emine_gross
+
+## Mine Discovery
+
+# calculate number of searches
+maxteam <- (cap_y1_s1 - (discoteam_last_costs * start_cap)) / cost_of_freelance
+minteam <- 0
+
+# random distribution of teams for that year
+calcteam <- floor(runif(num_sim, minteam, maxteam)*disco_team_mod*disco1to5[1])
+
+# include inhouse team
+searches <- 1 + calcteam
+searches <- (searches * (1-dtoswitch[1])) + (discoteam_overide[1] * dtoswitch[1])
+
+# how many searches needed to find the claim
+searchesneeded <- rnbinom(num_sim, 1, prob_of_finding_claim)
+
+# is the claim discovered
+discovered = searchesneeded - searches
+
+# remove values of 1
+discovered <- discovered + discovered
+discovered[discovered <= 0] <- 1
+discovered[discovered != 1] <- 0
+
+# calculate cost of search
+cost_of_search <- ((calcteam  * (1-dtoswitch[1])) + (discoteam_overide[1] * dtoswitch[1])-1) * cost_of_freelance
+
+# capital - search costs, year 1 stage 2
+cap_y1_s2 <- cap_y1_s1 - cost_of_search
+
+## fixed costs
+
+# calc fixed costs
+fixed_costs <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no cost for stood down mines
+fixed_costs[emine_stand_down == 1] <- 0 
+
+# capital - fixed costs, year 1 stage 3
+cap_y1_s3 <- cap_y1_s2 - fixed_costs
+
+## Legal
+
+# calc fees
+
+legal_fees <- rpert(n = num_sim, x.min = legal_min, x.max = legal_max, x.mode = legal_ml, lambda = lambda)
+
+# capital - legal fees, year 1 stage 4, capital (inc net profit)
+
+cap_y1_s4 <- cap_y1_s3 - legal_fees
+
+# distribution, probability to chose to resolve
+
+prob_of_choose <- rep(prob_of_choosing_resolution, num_sim)*reso1to5[1]
+
+goresolve <- rbinom(num_sim, 1, prob_of_choose)
+# calc success of resolution
+res_if_success <- rbinom(num_sim, 1, prob_of_resolution_success)
+
+# successful resolutions
+res_succ <- res_if_success + goresolve
+res_succ[res_succ < 2] <- 0
+res_succ[res_succ == 2] <- 1
+
+# lost mines
+lost_mine <- rep(0, num_sim)
+lost_mine[goresolve == 1 & res_if_success == 0] <- 1
+
+## Gold holding
+
+# capital to buy gold
+buyablegold <- cap_y1_s4 / gold_price
+buyablegold[buyablegold < 0] <- 0
+
+goldbuy <- buyablegold * gold_hold_mod[1]
+goldbuycost <- goldbuy * gold_price
+
+goldhold <- goldbuy
+
+# capital less gold expense
+
+cap_y1_s5 <- cap_y1_s4 - goldbuycost
+
+# end cap y1
+y1_end_cap <- cap_y1_s5
+last_costs <- legal_fees + fixed_costs
+
+## Check bankruptcy
+
+bankrupt <- rep(0, num_sim)
+bankrupt[y1_end_cap <= 0] <- 1
+
+```
+
+## Year 2
+
+```{r}
+#### YEAR 2
+
+## Gold price change
+change_in_gold <- rpert(n = num_sim, x.min = gold_change_min, x.max = gold_change_max, x.mode = gold_change_ml, lambda = lambda)
+
+gold_price <- gold_price + change_in_gold
+
+## gold hold sell
+goldsell <- goldhold * gold_price
+
+## Existing claim
+
+# calc change in output of existing claim
+emine_change_perc <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+emine_change <- emine_output * emine_change_perc
+# calc new output of existing claim
+
+emine_output <- emine_output + emine_change
+
+# calc revenue from output
+emine_revenue <- emine_output * gold_price
+
+# calc gross profit, - COGS
+emine_gross <- emine_revenue * (1-COGS)
+
+# check for lost mine
+emine_gross[lost_mine == 1] <- 0
+
+## Stand down mine if gold price low
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+# calc change in output of existing claim
+emine_change_perc_estimate <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+emine_change_estimate <- emine_output * emine_change_perc_estimate
+# calc new output of existing claim
+
+emine_output_estimate <- emine_output + emine_change_estimate
+
+emine_revenue_estimate <- emine_output_estimate * gold_price
+emine_gross_estimate <- emine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- emine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[2])
+
+# stood down mines
+emine_stand_down <- low_output * standdown_vote
+
+# no profit from stood down mines
+emine_gross[emine_stand_down == 1] <- 0
+
+# capital + gross profit, year 2 stage 1
+cap_y2_s1 <- y1_end_cap + emine_gross + goldsell
+
+## New claim
+
+# calc new mine output
+nmine_output <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+# calc revenue from output
+nmine_revenue <- nmine_output * gold_price
+
+# calc gross profit, - COGS
+nmine_gross <- nmine_revenue * (1-COGS)
+
+# where undiscovered profit = 0
+nmine_gross[discovered == 0] <- 0
+
+## Stand down mine if gold price low, new mine
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+nmine_output_estimate <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+nmine_revenue_estimate <- nmine_output_estimate * gold_price
+nmine_gross_estimate <- nmine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- nmine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[2])
+
+# stood down mines
+nmine_stand_down <- low_output * standdown_vote
+
+# no profit from stood down mines
+nmine_gross[nmine_stand_down == 1] <- 0
+
+# capital + gross profit, year 2 stage 2
+cap_y2_s2 <- cap_y2_s1 + nmine_gross
+
+## Mine Discovery
+
+# calculate number of searches
+max_team_ava <- cap_y2_s2 - (discoteam_last_costs * last_costs)
+max_team_ava[max_team_ava < 0] <- 0 
+maxteam <- max_team_ava / cost_of_freelance
+minteam <- rep(0, num_sim)
+
+# random distribution of teams for that year
+calcteam <- floor(runif(num_sim, minteam, maxteam)*disco_team_mod*disco1to5[2])
+
+# include inhouse team
+searches <- 1 + calcteam
+searches <- (searches * (1-dtoswitch[2])) + (discoteam_overide[2] * dtoswitch[2])
+
+# how many searches needed to find the claim
+searchesneeded <- rnbinom(num_sim, 1, prob_of_finding_claim)
+
+# is the claim discovered
+discovered2 = searchesneeded - searches # iterate
+
+# remove values of 1
+discovered2 <- discovered2 + discovered2
+discovered2[discovered2 <= 0] <- 1
+discovered2[discovered2 != 1] <- 0
+discovered2[discovered == 1] <- 1 # bring across already discovered mines
+discovered <- discovered + discovered2 # years since discovery
+
+# calculate cost of search
+cost_of_search <- ((calcteam  * (1-dtoswitch[2])) + (discoteam_overide[2] * dtoswitch[2]) -1) * cost_of_freelance
+
+# if already discovered no cost
+cost_of_search[discovered > 1] <- 0
+
+# capital - search costs, year 2 stage 3
+cap_y2_s3 <- cap_y2_s2 - cost_of_search
+
+## fixed costs
+
+# calc fixed costs
+
+# existing mine
+fixed_costs_e <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no costs from stood down mines
+fixed_costs_e[emine_stand_down == 1] <- 0 
+
+# new mine
+fixed_costs_n <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no costs from stood down mines
+fixed_costs_n[nmine_stand_down == 1] <- 0
+
+# fixed costs based on status
+fixed_costs_e[lost_mine == 1] <- 0
+fixed_costs <- fixed_costs_e
+
+fixed_costs[discovered > 1] <- fixed_costs[discovered > 1] + fixed_costs_n[discovered > 1]
+
+
+# capital - fixed costs, year 2 stage 4
+cap_y2_s4 <- cap_y2_s3 - fixed_costs
+
+## Legal
+
+legal_fees <- rpert(n = num_sim, x.min = legal_min, x.max = legal_max, x.mode = legal_ml, lambda = lambda)
+
+# no legal fees if mine lost or resolved previously
+legal_fees[lost_mine == 1] <- 0
+legal_fees[res_succ == 1] <- 0
+
+# capital - legal fees, year 2 stage 5, capital (inc net profit)
+
+cap_y2_s5 <- cap_y2_s4 - legal_fees
+
+# Uniform distribution, probability to chose to resolve
+
+prob_of_choose <- rep(prob_of_choosing_resolution, num_sim)
+prob_of_choose[discovered > 1] <- prob_of_choosing_resolution_found_claim
+prob_of_choose <- prob_of_choose * reso1to5[2]
+
+goresolve <- rbinom(num_sim, 1, prob_of_choose)
+
+# calc success of resolution
+res_if_success <- rbinom(num_sim, 1, prob_of_resolution_success)
+
+
+# successful resolutions existing mine
+res_succ_e <- res_if_success + goresolve
+res_succ_e[res_succ_e < 2] <- 0
+res_succ_e[res_succ_e == 2] <- 1
+res_succ_e[res_succ == 1] <- 1 # bring across already successful resolutions
+
+res_succ_e[lost_mine == 1] <- 0 # previously lost mines cannot be resolved
+
+# lost mines existing mine
+lost_mine_e <- rep(0, num_sim)
+lost_mine_e[goresolve == 1 & res_if_success == 0] <- 1
+lost_mine_e[lost_mine == 1] <- 1
+
+lost_mine_e[res_succ == 1] <- 0 # previously resolved mines can't be lost
+
+res_succ <- res_succ_e # replace old with new
+lost_mine <- lost_mine_e
+
+## Gold holding
+
+# capital to buy gold
+buyablegold <- cap_y2_s5 / gold_price
+buyablegold[buyablegold < 0] <- 0
+
+goldbuy <- buyablegold * gold_hold_mod[2]
+goldbuycost <- goldbuy * gold_price
+
+goldhold <- goldbuy
+
+# capital less gold expense
+
+cap_y2_s6 <- cap_y2_s5 - goldbuycost
+
+
+## Bankrupt companies don't keep going
+y2_end_cap <- cap_y2_s6
+
+y2_end_cap[bankrupt == 1] <- y1_end_cap[bankrupt == 1]
+last_costs <- legal_fees + fixed_costs
+
+## Check bankruptcy
+everbankrupt <- rep(0, num_sim)
+everbankrupt[bankrupt == 1] <- 1
+  
+bankrupt <- rep(0, num_sim)
+bankrupt[y2_end_cap <= 0] <- 1
+
+
+```
+
+## Year 3
+
+```{r}
+
+#### YEAR 3
+
+## Gold price change
+change_in_gold <- rpert(n = num_sim, x.min = gold_change_min, x.max = gold_change_max, x.mode = gold_change_ml, lambda = lambda)
+
+gold_price <- gold_price + change_in_gold
+
+## gold hold sell
+goldsell <- goldhold * gold_price
+
+## Existing claim
+
+# calc change in output of existing claim
+emine_change_perc <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+emine_change <- emine_output * emine_change_perc
+# calc new output of existing claim
+
+emine_output <- emine_output + emine_change
+
+# calc revenue from output
+emine_revenue <- emine_output * gold_price
+
+# calc gross profit, - COGS
+emine_gross <- emine_revenue * (1-COGS)
+
+# check for lost mine
+emine_gross[lost_mine == 1] <- 0
+
+## Stand down mine if gold price low
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+# calc change in output of existing claim
+emine_change_perc_estimate <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+emine_change_estimate <- emine_output * emine_change_perc_estimate
+# calc new output of existing claim
+
+emine_output_estimate <- emine_output + emine_change_estimate
+
+emine_revenue_estimate <- emine_output_estimate * gold_price
+emine_gross_estimate <- emine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- emine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[3])
+
+# stood down mines
+emine_stand_down <- low_output * standdown_vote
+
+# no profit from stood down mines
+emine_gross[emine_stand_down == 1] <- 0
+
+# capital + gross profit, year 3 stage 1
+cap_y3_s1 <- y2_end_cap + emine_gross + goldsell
+
+## New claim
+
+# calc new mine output
+nmine_output_2 <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+# calc y2 mine change in output
+nmine_change_perc <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+nmine_change <- nmine_output * nmine_change_perc
+
+# calc new output of new claim found last year +
+nmine_output <- nmine_output + nmine_change
+
+# pick output based on discovered status
+nmine_output[discovered == 1] <- nmine_output_2[discovered == 1]
+
+# calc revenue from output
+nmine_revenue <- nmine_output * gold_price
+
+# calc gross profit, - COGS
+nmine_gross <- nmine_revenue * (1-COGS)
+
+# where undiscovered profit = 0
+nmine_gross[discovered == 0] <- 0
+
+## Stand down mine if gold price low new new mine
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+nmine_output_estimate <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+nmine_revenue_estimate <- nmine_output_estimate * gold_price
+nmine_gross_estimate <- nmine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- nmine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[3])
+
+# stood down mines
+nmine_stand_down_nn <- low_output * standdown_vote
+
+## Stand down mine if gold price low old new mine
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+# calc change in output of existing claim
+nmine_change_perc_estimate <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+nmine_change_estimate <- nmine_output * nmine_change_perc_estimate
+# calc new output of existing claim
+
+nmine_output_estimate <- nmine_output + nmine_change_estimate
+
+nmine_revenue_estimate <- nmine_output_estimate * gold_price
+nmine_gross_estimate <- nmine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- nmine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[3])
+
+# stood down mines
+nmine_stand_down_no <- low_output * standdown_vote
+
+# no profit from new new mines stood down
+nmine_gross[discovered == 1 & nmine_stand_down_nn == 1] <- 0
+
+# no profit from old new mines
+nmine_gross[discovered > 1 & nmine_stand_down_no == 1] <- 0
+
+# capital + gross profit, year 3 stage 2
+cap_y3_s2 <- cap_y3_s1 + nmine_gross
+
+## Mine Discovery
+
+# calculate number of searches
+max_team_ava <- cap_y3_s2 - (discoteam_last_costs * last_costs)
+max_team_ava[max_team_ava < 0] <- 0 
+maxteam <- max_team_ava / cost_of_freelance
+minteam <- 0
+
+# random distribution of teams for that year
+calcteam <- floor(runif(num_sim, minteam, maxteam)*disco_team_mod**disco1to5[3])
+
+# include inhouse team
+searches <- 1 + calcteam
+searches <- (searches * (1-dtoswitch[3])) + (discoteam_overide[3] * dtoswitch[3])
+
+# how many searches needed to find the claim
+searchesneeded <- rnbinom(num_sim, 1, prob_of_finding_claim)
+
+# is the claim discovered
+discovered2 = searchesneeded - searches # interate
+
+# remove values of 1
+discovered2 <- discovered2 + discovered2
+discovered2[discovered2 <= 0] <- 1
+discovered2[discovered2 != 1] <- 0
+discovered2[discovered == 1] <- 1 # bring across already discovered mines
+discovered <- discovered + discovered2 # years since discovery
+
+# calculate cost of search
+cost_of_search <- ((calcteam  * (1-dtoswitch[3])) + (discoteam_overide[3] * dtoswitch[3])-1) * cost_of_freelance
+
+# if already discovered no cost
+cost_of_search[discovered > 1] <- 0
+
+# capital - search costs, year 3 stage 3
+cap_y3_s3 <- cap_y3_s2 - cost_of_search
+
+## fixed costs
+
+# existing mine
+fixed_costs_e <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no costs from stood down mines
+fixed_costs_e[emine_stand_down == 1] <- 0 
+
+# new mine
+fixed_costs_n <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no costs from stood down mines
+fixed_costs_n[nmine_stand_down_nn == 1 & discovered == 1] <- 0
+fixed_costs_n[nmine_stand_down_no == 1 & discovered > 1] <- 0
+
+# fixed costs based on status
+fixed_costs_e[lost_mine == 1] <- 0
+fixed_costs <- fixed_costs_e
+fixed_costs[discovered > 1] <- fixed_costs[discovered > 1] + fixed_costs_n[discovered > 1]
+
+# capital - fixed costs, year 3 stage 4
+cap_y3_s4 <- cap_y3_s3 - fixed_costs
+
+## Legal
+
+# calc fees
+
+legal_fees <- rpert(n = num_sim, x.min = legal_min, x.max = legal_max, x.mode = legal_ml, lambda = lambda)
+
+# no legal fees if mine lost or resolved previously
+legal_fees[lost_mine == 1] <- 0 
+legal_fees[res_succ == 1] <- 0
+
+# capital - legal fees, year 3 stage 5, capital (inc net profit)
+
+cap_y3_s5 <- cap_y3_s4 - legal_fees
+
+# Uniform distribution, probability to chose to resolve
+prob_of_choose <- rep(prob_of_choosing_resolution, num_sim)
+prob_of_choose[discovered > 1] <- prob_of_choosing_resolution_found_claim
+prob_of_choose <- prob_of_choose * reso1to5[3]
+
+goresolve <- rbinom(num_sim, 1, prob_of_choose)
+
+# calc success of resolution
+res_if_success <- rbinom(num_sim, 1, prob_of_resolution_success)
+
+# successful resolution
+res_succ_e <- res_if_success + goresolve
+res_succ_e[res_succ_e < 2] <- 0
+res_succ_e[res_succ_e == 2] <- 1
+res_succ_e[res_succ == 1] <- 1 # bring across already successful resolutions
+
+res_succ_e[lost_mine == 1] <- 0 # previously lost mines cannot be resolved
+
+# lost mine
+lost_mine_e <- rep(0, num_sim)
+lost_mine_e[goresolve == 1 & res_if_success == 0] <- 1
+lost_mine_e[lost_mine == 1] <- 1
+
+lost_mine_e[res_succ == 1] <- 0 # previously resolved mines can't be lost
+
+res_succ <- res_succ_e # replace old with new
+lost_mine <- lost_mine_e
+
+## Gold holding
+
+# capital to buy gold
+buyablegold <- cap_y3_s5 / gold_price
+buyablegold[buyablegold < 0] <- 0
+
+goldbuy <- buyablegold * gold_hold_mod[3]
+goldbuycost <- goldbuy * gold_price
+
+goldhold <- goldbuy
+
+# capital less gold expense
+
+cap_y3_s6 <- cap_y3_s5 - goldbuycost
+
+## Bankrupt companies don't keep going
+y3_end_cap <- cap_y3_s6
+last_costs <- legal_fees + fixed_costs
+
+y3_end_cap[bankrupt == 1] <- y2_end_cap[bankrupt == 1]
+
+## Check bankruptcy
+everbankrupt[bankrupt == 1] <- 1
+
+bankrupt <- rep(0, num_sim)
+bankrupt[y3_end_cap <= 0] <- 1
+
+```
+
+## Year 4
+
+```{r}
+
+#### YEAR 4
+
+## Gold price change
+change_in_gold <- rpert(n = num_sim, x.min = gold_change_min, x.max = gold_change_max, x.mode = gold_change_ml, lambda = lambda)
+
+gold_price <- gold_price + change_in_gold
+
+## gold hold sell
+goldsell <- goldhold * gold_price
+
+## Existing claim
+
+# calc change in output of existing claim
+emine_change_perc <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+emine_change <- emine_output * emine_change_perc
+# calc new output of existing claim
+
+emine_output <- emine_output + emine_change
+
+# calc revenue from output
+emine_revenue <- emine_output * gold_price
+
+# calc gross profit, - COGS
+emine_gross <- emine_revenue * (1-COGS)
+
+# check for lost mine
+emine_gross[lost_mine == 1] <- 0
+
+## Stand down mine if gold price low
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+# calc change in output of existing claim
+emine_change_perc_estimate <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+emine_change_estimate <- emine_output * emine_change_perc_estimate
+# calc new output of existing claim
+
+emine_output_estimate <- emine_output + emine_change_estimate
+
+emine_revenue_estimate <- emine_output_estimate * gold_price
+emine_gross_estimate <- emine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- emine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[4])
+
+# stood down mines
+emine_stand_down <- low_output * standdown_vote
+
+# no profit from stood down mines
+emine_gross[emine_stand_down == 1] <- 0
+
+# capital + gross profit, year 4 stage 1
+cap_y4_s1 <- y3_end_cap + emine_gross + goldsell
+
+## New claim
+
+# calc new mine output
+nmine_output_2 <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+# calc y2 mine change in output
+nmine_change_perc <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+nmine_change <- nmine_output * nmine_change_perc
+
+# calc new output of new claim found last year +
+nmine_output <- nmine_output + nmine_change
+
+# pick output based on discovered status
+nmine_output[discovered == 1] <- nmine_output_2[discovered == 1]
+
+# calc revenue from output
+nmine_revenue <- nmine_output * gold_price
+
+# calc gross profit, - COGS
+nmine_gross <- nmine_revenue * (1-COGS)
+
+# where undiscovered profit = 0
+nmine_gross[discovered == 0] <- 0
+
+
+## Stand down mine if gold price low new new mine
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+nmine_output_estimate <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+nmine_revenue_estimate <- nmine_output_estimate * gold_price
+nmine_gross_estimate <- nmine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- nmine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[4])
+
+# stood down mines
+nmine_stand_down_nn <- low_output * standdown_vote
+
+## Stand down mine if gold price low old new mine
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+# calc change in output of existing claim
+nmine_change_perc_estimate <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+nmine_change_estimate <- nmine_output * nmine_change_perc_estimate
+# calc new output of existing claim
+
+nmine_output_estimate <- nmine_output + nmine_change_estimate
+
+nmine_revenue_estimate <- nmine_output_estimate * gold_price
+nmine_gross_estimate <- nmine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- nmine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[4])
+
+# stood down mines
+nmine_stand_down_no <- low_output * standdown_vote
+
+# no profit from new new mines stood down
+nmine_gross[discovered == 1 & nmine_stand_down_nn == 1] <- 0
+
+# no profit from old new mines
+nmine_gross[discovered > 1 & nmine_stand_down_no == 1] <- 0
+
+# capital + gross profit, year 4 stage 2
+cap_y4_s2 <- cap_y4_s1 + nmine_gross
+
+## Mine Discovery
+
+# calculate number of searches
+max_team_ava <- cap_y4_s2 - (discoteam_last_costs * last_costs)
+max_team_ava[max_team_ava < 0] <- 0 
+
+maxteam <- max_team_ava / cost_of_freelance
+minteam <- 0
+
+# random distribution of teams for that year
+calcteam <- floor(runif(num_sim, minteam, maxteam)*disco_team_mod**disco1to5[4])
+
+# include inhouse team
+searches <- 1 + calcteam
+searches <- (searches * (1-dtoswitch[4])) + (discoteam_overide[4] * dtoswitch[4])
+
+# how many searches needed to find the claim
+searchesneeded <- rnbinom(num_sim, 1, prob_of_finding_claim)
+
+# is the claim discovered
+discovered2 = searchesneeded - searches # interate
+
+# remove values of 1
+discovered2 <- discovered2 + discovered2
+discovered2[discovered2 <= 0] <- 1
+discovered2[discovered2 != 1] <- 0
+discovered2[discovered == 1] <- 1 # bring across already discovered mines
+discovered <- discovered + discovered2 # years since discovery
+
+# calculate cost of search
+cost_of_search <- calcteam * cost_of_freelance
+cost_of_search <- ((calcteam  * (1-dtoswitch[4])) + (discoteam_overide[4] * dtoswitch[4])-1) * cost_of_freelance
+
+# if already discovered no cost
+cost_of_search[discovered > 1] <- 0
+
+# capital - search costs, year 4 stage 3
+cap_y4_s3 <- cap_y4_s2 - cost_of_search
+
+## fixed costs
+
+# existing mine
+fixed_costs_e <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no costs from stood down mines
+fixed_costs_e[emine_stand_down == 1] <- 0 
+
+# new mine
+fixed_costs_n <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no costs from stood down mines
+fixed_costs_n[nmine_stand_down_nn == 1 & discovered == 1] <- 0
+fixed_costs_n[nmine_stand_down_no == 1 & discovered > 1] <- 0
+
+# fixed costs based on status
+fixed_costs_e[lost_mine == 1] <- 0
+fixed_costs <- fixed_costs_e
+fixed_costs[discovered > 1] <- fixed_costs[discovered > 1] + fixed_costs_n[discovered > 1]
+
+# capital - fixed costs, year 4 stage 4
+cap_y4_s4 <- cap_y4_s3 - fixed_costs
+
+## Legal
+
+# calc fees
+
+legal_fees <- rpert(n = num_sim, x.min = legal_min, x.max = legal_max, x.mode = legal_ml, lambda = lambda)
+
+# no legal fees if mine lost or resolved previously
+legal_fees[lost_mine == 1] <- 0
+legal_fees[res_succ == 1] <- 0
+
+# capital - legal fees, year 4 stage 5, capital (inc net profit)
+
+cap_y4_s5 <- cap_y4_s4 - legal_fees
+
+# Uniform distribution, probability to chose to resolve
+prob_of_choose <- rep(prob_of_choosing_resolution, num_sim)
+prob_of_choose[discovered > 1] <- prob_of_choosing_resolution_found_claim
+prob_of_choose <- prob_of_choose * reso1to5[4]
+
+goresolve <- rbinom(num_sim, 1, prob_of_choose)
+
+# calc success of resolution
+res_if_success <- rbinom(num_sim, 1, prob_of_resolution_success)
+
+# successful resolution
+res_succ_e <- res_if_success + goresolve
+res_succ_e[res_succ_e < 2] <- 0
+res_succ_e[res_succ_e == 2] <- 1
+res_succ_e[res_succ == 1] <- 1 # bring across already successful resolutions
+
+res_succ_e[lost_mine == 1] <- 0 # previously lost mines cannot be resolved
+
+# lost mine
+lost_mine_e <- rep(0, num_sim)
+lost_mine_e[goresolve == 1 & res_if_success == 0] <- 1
+lost_mine_e[lost_mine == 1] <- 1
+
+lost_mine_e[res_succ == 1] <- 0 # previously resolved mines can't be lost
+
+res_succ <- res_succ_e # replace old with new
+lost_mine <- lost_mine_e
+
+## Gold holding
+
+# capital to buy gold
+buyablegold <- cap_y4_s5 / gold_price
+buyablegold[buyablegold < 0] <- 0
+
+goldbuy <- buyablegold * gold_hold_mod[4]
+goldbuycost <- goldbuy * gold_price
+
+goldhold <- goldbuy
+
+# capital less gold expense
+
+cap_y4_s6 <- cap_y4_s5 - goldbuycost
+
+## Bankrupt companies don't keep going
+y4_end_cap <- cap_y4_s6
+last_costs <- legal_fees + fixed_costs
+
+y4_end_cap[bankrupt == 1] <- y3_end_cap[bankrupt == 1]
+
+## Check bankruptcy
+everbankrupt[bankrupt == 1] <- 1
+
+bankrupt <- rep(0, num_sim)
+bankrupt[y4_end_cap <= 0] <- 1
+
+```
+
+## Year 5
+
+```{r}
+
+#### YEAR 5
+
+## Gold price change
+change_in_gold <- rpert(n = num_sim, x.min = gold_change_min, x.max = gold_change_max, x.mode = gold_change_ml, lambda = lambda)
+
+gold_price <- gold_price + change_in_gold
+
+## gold hold sell
+goldsell <- goldhold * gold_price
+
+## Existing claim
+
+# calc change in output of existing claim
+emine_change_perc <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+emine_change <- emine_output * emine_change_perc
+# calc new output of existing claim
+
+emine_output <- emine_output + emine_change
+
+# calc revenue from output
+emine_revenue <- emine_output * gold_price
+
+# calc gross profit, - COGS
+emine_gross <- emine_revenue * (1-COGS)
+
+# check for lost mine
+emine_gross[lost_mine == 1] <- 0
+
+## Stand down mine if gold price low
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+# calc change in output of existing claim
+emine_change_perc_estimate <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+emine_change_estimate <- emine_output * emine_change_perc_estimate
+# calc new output of existing claim
+
+emine_output_estimate <- emine_output + emine_change_estimate
+
+emine_revenue_estimate <- emine_output_estimate * gold_price
+emine_gross_estimate <- emine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- emine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[5])
+
+# stood down mines
+emine_stand_down <- low_output * standdown_vote
+
+# no profit from stood down mines
+emine_gross[emine_stand_down == 1] <- 0
+
+# capital + gross profit, year 5 stage 1
+cap_y5_s1 <- y4_end_cap + emine_gross + goldsell
+
+## New claim
+
+# calc new mine output
+nmine_output_2 <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+# calc y2 mine change in output
+nmine_change_perc <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+nmine_change <- nmine_output * nmine_change_perc
+
+# calc new output of new claim found last year +
+nmine_output <- nmine_output + nmine_change
+
+# pick output based on discovered status
+nmine_output[discovered == 1] <- nmine_output_2[discovered == 1]
+
+# calc revenue from output
+nmine_revenue <- nmine_output * gold_price
+
+# calc gross profit, - COGS
+nmine_gross <- nmine_revenue * (1-COGS)
+
+# where undiscovered profit = 0
+nmine_gross[discovered == 0] <- 0
+
+
+## Stand down mine if gold price low new new mine
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+nmine_output_estimate <- rpert(n = num_sim, x.min = mine1output_min, x.max = mine1output_max, x.mode = mine1output_ml, lambda = lambda)
+
+nmine_revenue_estimate <- nmine_output_estimate * gold_price
+nmine_gross_estimate <- nmine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- nmine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[5])
+
+# stood down mines
+nmine_stand_down_nn <- low_output * standdown_vote
+
+## Stand down mine if gold price low old new mine
+
+# estimate fixed costs
+
+fixed_costs_estimate <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# estimate output
+
+# calc change in output of existing claim
+nmine_change_perc_estimate <- rpert(n = num_sim, x.min = mine1change_min, x.max = mine1change_max, x.mode = mine1change_ml, lambda = lambda)
+
+nmine_change_estimate <- nmine_output * nmine_change_perc_estimate
+# calc new output of existing claim
+
+nmine_output_estimate <- nmine_output + nmine_change_estimate
+
+nmine_revenue_estimate <- nmine_output_estimate * gold_price
+nmine_gross_estimate <- nmine_revenue_estimate * (1-COGS)
+
+# check if output gross profit is below estimated fixed costs
+low_output <- nmine_gross_estimate - fixed_costs_estimate
+low_output[low_output >= 0] <- 0 
+low_output[low_output < 0] <- 1
+
+# probability that the company will stand down mines with low performance
+standdown_vote <- rbinom(num_sim, 1, minestanddown_prob[5])
+
+# stood down mines
+nmine_stand_down_no <- low_output * standdown_vote
+
+# no profit from new new mines stood down
+nmine_gross[discovered == 1 & nmine_stand_down_nn == 1] <- 0
+
+# no profit from old new mines
+nmine_gross[discovered > 1 & nmine_stand_down_no == 1] <- 0
+
+# capital + gross profit, year 5 stage 2
+cap_y5_s2 <- cap_y5_s1 + nmine_gross
+
+## Mine Discovery
+
+# calculate number of searches
+max_team_ava <- cap_y5_s2 - (discoteam_last_costs * last_costs)
+max_team_ava[max_team_ava < 0] <- 0 
+maxteam <- max_team_ava / cost_of_freelance
+minteam <- 0
+
+# random distribution of teams for that year
+calcteam <- floor(runif(num_sim, minteam, maxteam)*disco_team_mod**disco1to5[5])
+
+# include inhouse team
+searches <- 1 + calcteam
+searches <- (searches * (1-dtoswitch[5])) + (discoteam_overide[5] * dtoswitch[5])
+
+# how many searches needed to find the claim
+searchesneeded <- rnbinom(num_sim, 1, prob_of_finding_claim)
+
+# is the claim discovered
+discovered2 = searchesneeded - searches # interate
+
+# remove values of 1
+discovered2 <- discovered2 + discovered2
+discovered2[discovered2 <= 0] <- 1
+discovered2[discovered2 != 1] <- 0
+discovered2[discovered == 1] <- 1 # bring across already discovered mines
+discovered <- discovered + discovered2 # years since discovery
+
+# calculate cost of search
+cost_of_search <- ((calcteam  * (1-dtoswitch[5])) + (discoteam_overide[5] * dtoswitch[5])-1) * cost_of_freelance
+
+# if already discovered no cost
+cost_of_search[discovered > 1] <- 0
+
+#### Year 5 mod no searches
+cost_of_search <- 0
+
+# capital - search costs, year 5 stage 3
+cap_y5_s3 <- cap_y5_s2 - cost_of_search
+
+## fixed costs
+
+# existing mine
+fixed_costs_e <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no costs from stood down mines
+fixed_costs_e[emine_stand_down == 1] <- 0 
+
+# new mine
+fixed_costs_n <- rpert(n = num_sim, x.min = fixcost_min, x.max = fixcost_max, x.mode = fixcost_ml, lambda = lambda)
+
+# no costs from stood down mines
+fixed_costs_n[nmine_stand_down_nn == 1 & discovered == 1] <- 0
+fixed_costs_n[nmine_stand_down_no == 1 & discovered > 1] <- 0
+
+# fixed costs based on status
+fixed_costs_e[lost_mine == 1] <- 0
+fixed_costs <- fixed_costs_e
+fixed_costs[discovered > 1] <- fixed_costs[discovered > 1] + fixed_costs_n[discovered > 1]
+
+# capital - fixed costs, year 5 stage 4
+cap_y5_s4 <- cap_y5_s3 - fixed_costs
+
+## Legal
+
+# calc fees
+
+legal_fees <- rpert(n = num_sim, x.min = legal_min, x.max = legal_max, x.mode = legal_ml, lambda = lambda)
+
+# no legal fees if mine lost or resolved previously
+legal_fees[lost_mine == 1] <- 0
+legal_fees[res_succ == 1] <- 0
+
+# capital - legal fees, year 5 stage 5, capital (inc net profit)
+
+cap_y5_s5 <- cap_y5_s4 - legal_fees
+
+# Uniform distribution, probability to chose to resolve
+prob_of_choose <- rep(prob_of_choosing_resolution, num_sim)
+prob_of_choose[discovered > 1] <- prob_of_choosing_resolution_found_claim
+prob_of_choose <- prob_of_choose * reso1to5[5]
+
+goresolve <- rbinom(num_sim, 1, prob_of_choose)
+
+# calc success of resolution
+res_if_success <- rbinom(num_sim, 1, prob_of_resolution_success)
+
+# successful resolution
+res_succ_e <- res_if_success + goresolve
+res_succ_e[res_succ_e < 2] <- 0
+res_succ_e[res_succ_e == 2] <- 1
+res_succ_e[res_succ == 1] <- 1 # bring across already successful resolutions
+
+res_succ_e[lost_mine == 1] <- 0 # previously lost mines cannot be resolved
+
+# lost mine
+lost_mine_e <- rep(0, num_sim)
+lost_mine_e[goresolve == 1 & res_if_success == 0] <- 1
+lost_mine_e[lost_mine == 1] <- 1
+
+lost_mine_e[res_succ == 1] <- 0 # previously resolved mines can't be lost
+
+res_succ <- res_succ_e # replace old with new
+lost_mine <- lost_mine_e
+
+## Gold holding
+
+# capital to buy gold
+buyablegold <- cap_y5_s5 / gold_price
+buyablegold[buyablegold < 0] <- 0
+
+goldbuy <- buyablegold * gold_hold_mod[5]
+goldbuycost <- goldbuy * gold_price
+
+goldhold <- goldbuy
+
+# capital less gold expense
+
+cap_y5_s6 <- cap_y5_s5 - goldbuycost
+
+## Bankrupt companies don't keep going
+y5_end_cap <- cap_y5_s6
+last_costs <- legal_fees + fixed_costs
+
+y5_end_cap[bankrupt == 1] <- y4_end_cap[bankrupt == 1]
+
+## Check bankruptcy
+everbankrupt[bankrupt == 1] <- 1
+
+bankrupt <- rep(0, num_sim)
+bankrupt[y5_end_cap <= 0] <- 1
+
+```
+

@@ -1,0 +1,357 @@
+## Price of Gold Simulation
+
+```{r}
+## Price of gold
+
+# number of trials
+
+n <- 10000
+vmin <- -150
+vml <- 150
+vmax <- 300
+lambda = 4
+
+set.seed(98)
+
+# trials df
+
+pricesim <- data.frame(year1 = rep(2500, n))
+
+pricesim$change2 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+pricesim$year2 <- pricesim$year1 + pricesim$change2
+
+pricesim$change3 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+pricesim$year3 <- pricesim$year2 + pricesim$change3
+
+pricesim$change4 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+pricesim$year4 <- pricesim$year3 + pricesim$change4
+
+pricesim$change5 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+pricesim$year5 <- pricesim$year4 + pricesim$change5
+
+pricesimlong <- pricesim %>% 
+    pivot_longer(c(year1, year2, year3, year4, year5), names_to = "year", values_to="price") %>% 
+    select(year, price)
+
+pricesimlong$year <- ordered(pricesimlong$year, c("year1", "year2", "year3", "year4", "year5"))
+pricesimlong$year <- as.numeric(pricesimlong$year)
+
+ggplot(pricesimlong, aes(x = year, y = price)) + geom_point() + geom_smooth(method = "lm")
+lm(price ~ year, pricesimlong)
+
+# https://davetang.org/muse/2012/02/10/manual-linear-regression-analysis-using-r/
+ 
+# the slope formula is just
+# covariance(x, y) / variance(x)
+slope2 <- function(x, y){
+  return(cov(x, y)/var(x))
+}
+ 
+intercept <- function(x, y, m){
+  b <- mean(y) - (m * mean(x))
+  return(b)
+}
+
+slope2(pricesimlong$year, pricesimlong$price)
+```
+
+
+## Gold Claim 1 Output Simulation
+
+```{r}
+## Gold mined
+
+# Mine 1
+
+# Year 1
+
+n <- 10000
+vmin <- 50
+vml <- 800
+vmax <- 1500
+lambda <- 4
+
+minesim1 <- data.frame(year1output = rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda))
+
+# full sim
+n <- 10000
+vmin <- -0.1
+vml <- 0.3
+vmax <- 0.7
+lambda <- 4
+
+minesim1$percchange2 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+minesim1$year2change <- minesim1$year1output * minesim1$percchange2
+minesim1$year2output <- minesim1$year1output + minesim1$year2change
+
+minesim1$percchange3 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+minesim1$year3change <- minesim1$year2output * minesim1$percchange3
+minesim1$year3output <- minesim1$year2output + minesim1$year3change
+
+minesim1$percchange4 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+minesim1$year4change <- minesim1$year3output * minesim1$percchange4
+minesim1$year4output <- minesim1$year3output + minesim1$year4change
+
+minesim1$percchange5 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+minesim1$year5change <- minesim1$year4output * minesim1$percchange5
+minesim1$year5output <- minesim1$year4output + minesim1$year5change
+```
+
+### Gold Claim 1 Revenue Output
+
+```{r}
+
+# simulated revenue & gross profit from mine 1
+
+mineout1 <- data.frame(year1rev = rep(1, 10000))
+
+mineout1$year1rev <- minesim1$year1output * pricesim$year1
+mineout1$year1gprof <- mineout1$year1rev * 0.65
+mineout1$year1gproftot <- mineout1$year1gprof
+
+mineout1$year2rev <- minesim1$year2output * pricesim$year2
+mineout1$year2gprof <- mineout1$year2rev * 0.65
+mineout1$year2gproftot <- mineout1$year1gprof + mineout1$year2gprof
+
+mineout1$year3rev <- minesim1$year3output * pricesim$year3
+mineout1$year3gprof <- mineout1$year3rev * 0.65
+mineout1$year3gproftot <- mineout1$year1gprof + mineout1$year2gprof + mineout1$year3gprof
+
+mineout1$year4rev <- minesim1$year4output * pricesim$year4
+mineout1$year4gprof <- mineout1$year4rev * 0.65
+mineout1$year4gproftot <- mineout1$year1gprof + mineout1$year2gprof + mineout1$year3gprof + mineout1$year4gprof
+
+mineout1$year5rev <- minesim1$year5output * pricesim$year5
+mineout1$year5gprof <- mineout1$year5rev * 0.65
+mineout1$year5gproftot <- mineout1$year1gprof + mineout1$year2gprof + mineout1$year3gprof + mineout1$year4gprof + mineout1$year5gprof
+
+```
+
+
+
+```{r}
+
+hist(mineout1$year5gproftot)
+plot(ecdf(-mineout1$year5gprof))
+quantile(ecdf(mineout1$year5gprof),0.1,type=7)
+
+```
+
+
+## Mine 2 Simulation
+
+**Year 1 is year after discovery, must align with discovery time not other years**
+
+```{r}
+# Mine 2
+
+# Year 1
+
+n <- 10000
+vmin <- 50
+vml <- 800
+vmax <- 1500
+lambda <- 4
+
+minesim2 <- data.frame(year1output = rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda))
+
+# full sim
+n <- 10000
+vmin <- -0.1
+vml <- 0.3
+vmax <- 0.7
+lambda <- 4
+
+minesim2$percchange2 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+minesim2$year2change <- minesim2$year1output * minesim2$percchange2
+minesim2$year2output <- minesim2$year1output + minesim2$year2change
+
+minesim2$percchange3 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+minesim2$year3change <- minesim2$year2output * minesim2$percchange3
+minesim2$year3output <- minesim2$year2output + minesim2$year3change
+
+minesim2$percchange4 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+minesim2$year4change <- minesim2$year3output * minesim2$percchange4
+minesim2$year4output <- minesim2$year3output + minesim2$year4change
+
+```
+
+
+# Claim Discovery
+
+## 1 Team
+
+```{r}
+
+# discosim1team <- data.frame(prob1 = runif(10000, min = 0, max = 1))
+# 
+# discosim1team$discovered1 <- 0
+# discosim1team[discosim1team$prob1 >= 0.85, "discovered1"] <- 1
+# 
+# discosim1team$prob2 <- runif(10000, min = 0, max = 1)
+# discosim1team$discovered2 <- 0
+# discosim1team[discosim1team$prob2 >= 0.85, "discovered2"] <- 1
+# discosim1team[discosim1team$discovered1 == 1, "discovered2"] <- 1
+
+# binomial distribution
+trials <- 1:50
+
+plot(trials, pbinom(1, trials, 0.15, lower.tail = FALSE), "l")
+
+# negative binomial distribution for calc
+qnbinom(0.9, 1, 0.15, lower.tail = TRUE, log.p = FALSE)
+
+```
+
+### Team Deployment 
+
+```{r}
+
+# Random Team Allocation?
+
+```
+
+
+
+## Mine 2 Revenue
+
+```{r}
+## Found in first year
+
+mineout2y2 <- data.frame(year1 <- rep(1, 10000))
+
+mineout2y2$year1rev <- minesim2$year1output * pricesim$year2
+mineout2y2$year1gprof <- mineout2y2$year1rev * 0.65
+
+mineout2y2$year2rev <- minesim2$year2output * pricesim$year3
+mineout2y2$year2gprof <- mineout2y2$year2rev * 0.65
+
+mineout2y2$year3rev <- minesim2$year3output * pricesim$year4
+mineout2y2$year3gprof <- mineout2y2$year3rev * 0.65
+
+mineout2y2$year4rev <- minesim2$year4output * pricesim$year5
+mineout2y2$year4gprof <- mineout2y2$year4rev * 0.65
+
+mineout2y2$totalgprof <- mineout2y2$year1gprof + mineout2y2$year2gprof + mineout2y2$year3gprof + mineout2y2$year4gprof
+
+hist(mineout2y2$totalgprof)
+
+```
+
+
+```{r}
+## found in second year
+
+mineout2y3 <- data.frame(year1 <- rep(1, 10000))
+
+mineout2y3$year1rev <- minesim2$year1output * pricesim$year3
+mineout2y3$year1gprof <- mineout2y3$year1rev * 0.65
+
+mineout2y3$year2rev <- minesim2$year2output * pricesim$year4
+mineout2y3$year2gprof <- mineout2y3$year2rev * 0.65
+
+mineout2y3$year3rev <- minesim2$year3output * pricesim$year5
+mineout2y3$year3gprof <- mineout2y3$year3rev * 0.65
+
+mineout2y3$totalgprof <- mineout2y3$year1gprof + mineout2y3$year2gprof + mineout2y3$year3gprof
+
+hist(mineout2y3$totalgprof)
+```
+
+
+
+```{r}
+## found in third year
+
+mineout2y4 <- data.frame(year1 <- rep(1, 10000))
+
+mineout2y4$year1rev <- minesim2$year1output * pricesim$year4
+mineout2y4$year1gprof <- mineout2y4$year1rev * 0.65
+
+mineout2y4$year2rev <- minesim2$year2output * pricesim$year5
+mineout2y4$year2gprof <- mineout2y4$year2rev * 0.65
+
+mineout2y4$totalgprof <- mineout2y4$year1gprof + mineout2y4$year2gprof
+
+hist(mineout2y4$totalgprof)
+
+```
+
+
+
+```{r}
+## found in fourth year
+
+mineout2y5 <- data.frame(year1 <- rep(1, 10000))
+
+mineout2y5$year1rev <- minesim2$year1output * pricesim$year5
+mineout2y5$year1gprof <- mineout2y5$year1rev * 0.65
+
+hist(mineout2y5$year1gprof)
+
+```
+
+
+## Legal Fees
+
+```{r}
+
+## Legal Fee Sim
+
+# Year 1
+
+n <- 10000
+vmin <- 500000
+vml <- 750000
+vmax <- 1000000
+lambda <- 4
+
+legalsim1 <- data.frame(year1 = rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda))
+
+legalsim1$year2 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+legalsim1$year2tot <- legalsim1$year1 + legalsim1$year2
+
+legalsim1$year3 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+legalsim1$year3tot <- legalsim1$year1 + legalsim1$year2 + legalsim1$year3
+
+legalsim1$year4 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+legalsim1$year4tot <- legalsim1$year1 + legalsim1$year2 + legalsim1$year3 + legalsim1$year4 
+
+legalsim1$year5 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+legalsim1$year5tot <- legalsim1$year1 + legalsim1$year2 + legalsim1$year3 + legalsim1$year4 + legalsim1$year5
+
+hist(legalsim1$year5tot)
+
+```
+
+## Fixed Costs
+
+```{r}
+
+## Legal Fee Sim
+
+# Year 1
+
+n <- 10000
+vmin <- 550000
+vml <- 850000
+vmax <- 1100000
+lambda <- 4
+
+fixedssim <- data.frame(year1 = rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda))
+
+fixedssim$year2 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+fixedssim$year2tot <- fixedssim$year1 + fixedssim$year2
+
+fixedssim$year3 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+fixedssim$year3tot <- fixedssim$year1 + fixedssim$year2 + fixedssim$year3
+
+fixedssim$year4 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+fixedssim$year4tot <- fixedssim$year1 + fixedssim$year2 + fixedssim$year3 + fixedssim$year4 
+
+fixedssim$year5 <- rpert(n = n, x.min = vmin, x.max = vmax, x.mode = vml, lambda = lambda)
+fixedssim$year5tot <- fixedssim$year1 + fixedssim$year2 + fixedssim$year3 + fixedssim$year4 + fixedssim$year5
+
+hist(fixedssim$year5tot)
+
+```

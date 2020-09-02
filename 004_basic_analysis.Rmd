@@ -1,0 +1,55 @@
+# Basic Analysis
+
+
+## Initial
+```{r}
+
+hist(y1_end_cap)
+hist(y2_end_cap)
+hist(y3_end_cap)
+hist(y4_end_cap)
+ggplot() + geom_histogram(aes(y5_end_cap), bins = 200) + geom_vline(xintercept = 2e6)
+
+ggplot() + geom_histogram(aes(cap_y4_s5), bins = 200)
+
+discovered
+
+ggplot() + geom_histogram(aes(discovered), bins = 200)
+
+
+plot(ecdf(y5_end_cap))
+
+quantile(ecdf(y5_end_cap), 0.99, type = 7)
+
+table(everbankrupt)
+table(discovered)
+
+t <- discovered
+t[t > 1] <- 2
+table(t)
+
+table(lost_mine)
+
+breakbust <- rep(1, num_sim)
+breakbust[y5_end_cap < 0] <- 0
+
+table(breakbust)
+
+```
+
+```{r}
+test <- y5_end_cap[lost_mine == 1]
+ggplot() + geom_histogram(aes(test), bins = 200)
+  
+```
+
+
+### Original
+
+* High probability of bankruptcy
+* 99th percentile 18236291
+
+### Tweaked
+
+* Less discovery teams reduces bankruptcy
+* 99th percentile 19253163
