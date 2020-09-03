@@ -1,4 +1,4 @@
-# Complex Symulation Analysis
+# Complex Simulation Analysis
 
 ## Initial
 ```{r}
@@ -69,6 +69,34 @@ quantile(ecdf(resultstest$all0.95_noplex), c(0.02, 0.1, 0.5, 0.9, 0.95, 0.999), 
 quantile(ecdf(resultstest$all0.05_noplex), c(0.02, 0.1, 0.5, 0.9, 0.95, 0.999), type = 7) 
 quantile(ecdf(resultstest$highdisco_noplex), c(0.02, 0.1, 0.5, 0.9, 0.95, 0.999), type = 7)
 quantile(ecdf(resultstest$highresol_noplex), c(0.02, 0.1, 0.5, 0.9, 0.95, 0.999), type = 7) 
+
+```
+
+### output collated
+
+```{r}
+
+names(outputy1)[2:ncol(outputy1)] <- paste("y1",names(outputy1)[2:ncol(outputy1)], sep = ".")
+names(outputy2)[2:ncol(outputy2)] <- paste("y2",names(outputy2)[2:ncol(outputy2)], sep = ".")
+names(outputy3)[2:ncol(outputy3)] <- paste("y3",names(outputy3)[2:ncol(outputy3)], sep = ".")
+names(outputy4)[2:ncol(outputy4)] <- paste("y4",names(outputy4)[2:ncol(outputy4)], sep = ".")
+names(outputy5)[2:ncol(outputy5)] <- paste("y5",names(outputy5)[2:ncol(outputy5)], sep = ".")
+
+output <- data.frame(runid = 1:num_sim)
+
+output <- output %>% 
+  left_join(outputy1, by = "runid") %>% 
+  left_join(outputy2, by = "runid") %>% 
+  left_join(outputy3, by = "runid") %>% 
+  left_join(outputy4, by = "runid") %>% 
+  left_join(outputy5, by = "runid")
+
+
+ggplot(output, aes(x = y5.end_cap)) + geom_histogram(bins = 100)
+
+highout <- output %>% 
+  filter(y5.end_cap >= 2.5e7) %>% 
+  arrange(desc(y5.end_cap))
 
 ```
 

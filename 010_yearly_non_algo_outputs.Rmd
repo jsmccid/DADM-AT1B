@@ -47,12 +47,12 @@ mine1change_max <- 0.7
 ```{r}
 
 # discovery teams modifier
-disco_team_mod <- 0.95 # % of potential teams
+disco_team_mod <- 0.5 # % of potential teams
 discoteam_last_costs <- 0.05 # minus percentage of last years costs from discovery team budget (of starting cap for first year)
 
 # legal modifier
-prob_of_choosing_resolution <- 0.05 # Probability of chosing to try and resolve
-prob_of_choosing_resolution_found_claim <- 0.05 # probability if 2nd claim is found (independent of above)
+prob_of_choosing_resolution <- 0.5 # Probability of chosing to try and resolve
+prob_of_choosing_resolution_found_claim <- 0.5 # probability if 2nd claim is found (independent of above)
 
 ```
 
@@ -99,12 +99,11 @@ reso1to5 <- rep(1, 5)
 
 ```{r}
 
-output <- data.frame(runid <- 1:num_sim)
-outputy1 <- data.frame(runid <- 1:num_sim)
-outputy2 <- data.frame(runid <- 1:num_sim)
-outputy3 <- data.frame(runid <- 1:num_sim)
-outputy4 <- data.frame(runid <- 1:num_sim)
-outputy5 <- data.frame(runid <- 1:num_sim)
+outputy1 <- data.frame(runid = 1:num_sim)
+outputy2 <- data.frame(runid = 1:num_sim)
+outputy3 <- data.frame(runid = 1:num_sim)
+outputy4 <- data.frame(runid = 1:num_sim)
+outputy5 <- data.frame(runid = 1:num_sim)
 
 ```
 
@@ -257,24 +256,23 @@ bankrupt <- rep(0, num_sim)
 bankrupt[y1_end_cap <= 0] <- 1
 
 ```
+
+### Save out
+
 ```{r}
 ## Save
 
 outputy1$gold_price <- gold_price
-outputy1$cap_p_gross <- cap_y1_s1
+outputy1$emine_gross <- emine_revenue * (1-COGS)
+outputy1$emine_stand_down <- emine_stand_down
 outputy1$searches <- searches
-outputy1$searchesneeded <- searchesneeded
 outputy1$discovered <- discovered
-outputy1$cap_m_search <- cap_y1_s2
-outputy1$cap_m_fixed_costs <- cap_y1_s3
-outputy1$cap_m_legalfees <- cap_y1_s4
 outputy1$choose_resolution <- goresolve
 outputy1$successful_resolution <- res_if_success
-soutputy1$succes <- res_succ
+outputy1$succes <- res_succ
 outputy1$lost_mine <- lost_mine
 outputy1$goldhold <- goldhold
-outputy1$cap_m_goldbuy <- cap_y1_s5
-outputy1$y1_end_cap <- y1_end_cap
+outputy1$end_cap <- y1_end_cap
 outputy1$last_costs <- last_costs
 outputy1$bankrupt <- bankrupt
 
@@ -528,6 +526,30 @@ bankrupt[y2_end_cap <= 0] <- 1
 
 
 ```
+
+### save
+
+```{r}
+
+outputy2$gold_price <- gold_price
+outputy2$emine_gross <- emine_revenue * (1-COGS)
+outputy2$emine_stand_down <- emine_stand_down
+outputy2$nmine_gross <- nmine_revenue * (1-COGS)
+outputy2$nmine_stand_down <- nmine_stand_down
+outputy2$searches <- searches
+outputy2$discovered <- discovered
+outputy2$choose_resolution <- goresolve
+outputy2$successful_resolution <- res_if_success
+outputy2$succes <- res_succ
+outputy2$lost_mine <- lost_mine
+outputy2$goldhold <- goldhold
+outputy2$end_cap <- y2_end_cap
+outputy2$last_costs <- last_costs
+outputy2$bankrupt <- bankrupt
+
+```
+
+
 
 ## Year 3
 
@@ -816,6 +838,29 @@ bankrupt <- rep(0, num_sim)
 bankrupt[y3_end_cap <= 0] <- 1
 
 ```
+
+### Save
+
+```{r}
+
+outputy3$gold_price <- gold_price
+outputy3$emine_gross <- emine_revenue * (1-COGS)
+outputy3$emine_stand_down <- emine_stand_down
+outputy3$nmine_gross <- nmine_revenue * (1-COGS)
+outputy3$nmine_stand_down <- nmine_stand_down
+outputy3$searches <- searches
+outputy3$discovered <- discovered
+outputy3$choose_resolution <- goresolve
+outputy3$successful_resolution <- res_if_success
+outputy3$succes <- res_succ
+outputy3$lost_mine <- lost_mine
+outputy3$goldhold <- goldhold
+outputy3$end_cap <- y3_end_cap
+outputy3$last_costs <- last_costs
+outputy3$bankrupt <- bankrupt
+
+```
+
 
 ## Year 4
 
@@ -1108,6 +1153,27 @@ bankrupt[y4_end_cap <= 0] <- 1
 
 ```
 
+### Save
+
+```{r}
+outputy4$gold_price <- gold_price
+outputy4$emine_gross <- emine_revenue * (1-COGS)
+outputy4$emine_stand_down <- emine_stand_down
+outputy4$nmine_gross <- nmine_revenue * (1-COGS)
+outputy4$nmine_stand_down <- nmine_stand_down
+outputy4$searches <- searches
+outputy4$discovered <- discovered
+outputy4$choose_resolution <- goresolve
+outputy4$successful_resolution <- res_if_success
+outputy4$succes <- res_succ
+outputy4$lost_mine <- lost_mine
+outputy4$goldhold <- goldhold
+outputy4$end_cap <- y4_end_cap
+outputy4$last_costs <- last_costs
+outputy4$bankrupt <- bankrupt
+```
+
+
 ## Year 5
 
 ```{r}
@@ -1397,6 +1463,28 @@ everbankrupt[bankrupt == 1] <- 1
 
 bankrupt <- rep(0, num_sim)
 bankrupt[y5_end_cap <= 0] <- 1
+
+```
+
+### save
+
+```{r}
+
+outputy5$gold_price <- gold_price
+outputy5$emine_gross <- emine_revenue * (1-COGS)
+outputy5$emine_stand_down <- emine_stand_down
+outputy5$nmine_gross <- nmine_revenue * (1-COGS)
+outputy5$nmine_stand_down <- nmine_stand_down
+outputy5$searches <- searches
+outputy5$discovered <- discovered
+outputy5$choose_resolution <- goresolve
+outputy5$successful_resolution <- res_if_success
+outputy5$succes <- res_succ
+outputy5$lost_mine <- lost_mine
+outputy5$goldhold <- goldhold
+outputy5$end_cap <- y5_end_cap
+outputy5$last_costs <- last_costs
+outputy5$bankrupt <- bankrupt
 
 ```
 
